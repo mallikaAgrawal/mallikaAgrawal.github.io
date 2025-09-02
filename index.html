@@ -1,16 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>My Portfolio</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My CS180 Portfolio</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9fb;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 2rem 1rem;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2.5rem;
+    }
+
+    header p {
+      font-size: 1.1rem;
+      margin-top: 0.5rem;
+      opacity: 0.9;
+    }
+
+    main {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    h2 {
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+      color: #2c3e50;
+    }
+
+    .projects {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+
+    .project-card {
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-align: center;
+    }
+
+    .project-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .project-card a {
+      text-decoration: none;
+      color: #2c3e50;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding: 1.5rem;
+      font-size: 0.9rem;
+      color: #666;
+      background-color: #f1f1f1;
+    }
+  </style>
 </head>
 <body>
-    <h1>Welcome to My CS180 Portfolio!</h1>
-    <a href="./1/index.html">Project 1</a>
+  <header>
+    <h1>Welcome to My CS180 Portfolio</h1>
+    <p>Projects and explorations in computer science</p>
+  </header>
+
+  <main>
+    <h2>Projects</h2>
+    <div class="projects">
+      <div class="project-card">
+        <a href="./1/index.html">Project 1: [Title]</a>
+      </div>
+      <div class="project-card">
+        <a href="./2/index.html">Project 2: [Title]</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    © 2025 Mallika Agrawal · Built with GitHub Pages
+  </footer>
 </body>
 </html>
