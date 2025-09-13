@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project 1 | My CS180 Portfolio</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #E6E6FA; /* lavender background */
+      color: #2c2c2c;
+      line-height: 1.6;
+    }
+
+    header {
+      background-color: #483D8B;
+      color: white;
+      padding: 2rem 1rem;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 2.2rem;
+    }
+
+    header p {
+      font-size: 1rem;
+      margin-top: 0.5rem;
+      color: #E6E6FA;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    h2 {
+      border-bottom: 3px solid #7B68EE;
+      padding-bottom: 0.5rem;
+      margin-top: 2rem;
+      color: #6A5ACD;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.2rem;
+      margin: 1.5rem 0;
+    }
+
+    .gallery-item {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: center;
+      border: 2px solid #9370DB;
+    }
+
+    .gallery-item img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .reflection {
+      background: white;
+      border-left: 5px solid #9370DB;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-top: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .back {
+      display: inline-block;
+      margin-top: 2rem;
+      text-decoration: none;
+      color: #483D8B;
+      font-weight: 600;
+      transition: color 0.2s ease;
+    }
+    .back:hover {
+      color: #7B68EE;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding: 1.5rem;
+      font-size: 0.9rem;
+      color: #E6E6FA;
+      background-color: #483D8B;
+      border-top: 3px solid #7B68EE;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Project 1: Colorizing the Prokudin-Gorskii Collection</h1>
+    <p>CS180 · Intro to Computer Vision & Computational Photography</p>
+  </header>
+
+  <main>
+    <h2>Introduction</h2>
+    <p>In this project, I aligned and colorized the digitized glass plate negatives taken by Sergei Prokudin-Gorskii. The images were originally captured with three exposures (R, G, B), which I combined into a single color photograph.</p>
+
+    <h2>Single-Scale Results</h2>
+    <p>For smaller images, I used a brute-force search within a limited window of displacements. In my first attempt, I used the Euclidean Distance as the image matching metric and didn’t do any preprocessing on the channels before running the algorithm. I examined shifts of [-15, 15] in the horizontal and vertical direction. My results were not good enough at this stage, so I decided to crop the image to get rid of the borders, which were likely skewing the results and causing alignment to the wrong value. I experimented with a few different numbers for the crop factor, and got successful results for crop factors around the neighborhood of 6% off each side. I chose 6% since I thought it looked the best to me visually:</p>
+    <div class="gallery">
+        <div class="gallery-item">
+          <img src="./media/monastery_no_crop.jpg" alt="Monastery with No Crop">
+          <p><em>Monastery with No Crop</em></p>
+        </div>
+        <div class="gallery-item">
+          <img src="./media/monastery.jpg" alt="Aligned Monastery">
+          <p><em>Aligned Monastery</em></p>
+        </div>
+    </div>
+    <p>I also implemented Normalized Cross-Correlation (NCC), but I got the exact same offsets with it as the Euclidean Distance metric. These are my final results for the smaller image files: </p>
+
+    <div class="gallery">
+      <div class="gallery-item">
+        <img src="./media/cathedral.jpg" alt="Aligned Cathedral">
+        <p><em>Aligned Cathedral <br>
+            Green channel offset: (2, 5) <br>
+            Red channel offset: (3, 12) 
+            </em></p>
+      </div>
+      <div class="gallery-item">
+        <img src="./media/monastery.jpg" alt="Aligned Monastery">
+        <p><em>Aligned Monastery <br>
+            Green channel offset: (2, -3) <br>
+            Red channel offset: (2, 3)
+
+        </em></p>
+      </div>
+      <div class="gallery-item">
+        <img src="./media/tobolsk.jpg" alt="Aligned Tobolsk">
+        <p><em>Aligned Tobolsk <br>
+            Green channel offset: (3, 3) <br>
+            Red channel offset: (3, 6)
+
+        </em></p>
+      </div>
+    </div>
+
+    <h2>Multi-Scale (Image Pyramid) Final Results</h2>
+    <p>
+        For larger images, I implemented a multi-scale image pyramid. The idea is to first
+        align the images at a low resolution (where displacements are small), and then refine
+        the alignment progressively at higher resolutions. This strategy reduces the work 
+        compared to an exhaustive search at full resolution, while still capturing large 
+        displacements.
+      </p>
+      <p>
+        In my implementation, I rescaled each image by 0.5 at each level until the image width
+        or height dropped below a threshold. At each level, I used the best offset from the 
+        smaller level as a starting point, and then searched only within a small local window 
+        around that offset. This prevents unnecessary computation while still adapting to 
+        small corrections that appear at finer scales.
+      </p>
+      <p>
+        Early on, I set a fixed ±5 pixel search range at every level, but I realized that didn’t 
+        scale well. At low resolutions, ±5 covers far too much relative displacement, while at 
+        higher resolutions it’s too restrictive. I fixed this by scaling the search window in 
+        proportion to the image size, which gave more balanced results.
+      </p>
+    
+      <h3>Preprocessing</h3>
+      <p>
+        Before alignment, I cropped the borders of each image by 10% on all sides. This step 
+        removed strong edge artifacts caused by the borders, which otherwise misled the alignment.
+      </p>
+    
+      <h3>Similarity Metric</h3>
+      <p>
+        I experimented with both Euclidean Distance (sum of squared differences) and Normalized 
+        Cross Correlation (NCC). Euclidean Distance often produced blurrier images because it is 
+        sensitive to brightness differences across channels. NCC, by normalizing intensity vectors, 
+        proved more robust to contrast changes and led to noticeably sharper results with fewer 
+        color misalignments, so I adopted it.
+      </p>
+    
+      <h3>Challenges</h3>
+      <ul>
+        <li>
+          <strong>Choosing the scale factor:</strong> Too small, and information is lost at lower 
+          levels; too large, and displacements remain difficult to capture.
+        </li>
+        <li>
+          <strong>Choosing how much to crop:</strong> Aggressive cropping (0.2–0.5) like Prof Efros suggested 
+          on Ed lost too much information and caused misalignment across attempts.
+        </li>
+        <li>
+          <strong>Overlapping regions:</strong> One mistake I made was not cropping the image after 
+          shifting. As a result, larger shifts were penalized because non-overlapping areas were 
+          filled with zeros from the <code>shift_image</code> function.
+        </li>
+      </ul>
+    
+      <h3>Limitations</h3>
+      <p>
+        Emir is still badly misaligned. The images to be matched do not have the same brightness 
+        values, so even with NCC it was too difficult to align him.
+      </p>
+        <div class="gallery">
+        <div class="gallery-item">
+            <img src="./media/church.jpg" alt="Church">
+            <p><em>Church <br>
+                Green channel offset: (4, 25)
+                Red channel offset: (-4, 58)
+                                        </em></p>
+            </div>
+    <div class="gallery-item">
+        <img src="./media/emir.jpg" alt="Emir">
+        <p><em>Emir <br>
+            Green channel offset: (24, 49) <br>
+            Red channel offset: (42, 68)
+        </em></p>
+        </div>
+    <div class="gallery-item">
+        <img src="./media/harvesters.jpg" alt="Harvesters">
+        <p><em>Harvesters <br>
+            Green channel offset: (17, 59) <br>
+            Red channel offset: (14, 124)
+                    </em></p>
+        </div>    
+    <div class="gallery-item">
+        <img src="./media/icon.jpg" alt="Icon">
+        <p><em>Icon <br>
+            Green channel offset: (17, 41) <br>
+            Red channel offset: (23, 89)
+                                </em></p>
+        </div>
+    <div class="gallery-item">
+        <img src="./media/italil.jpg" alt="Italil">
+        <p><em>Italil <br>
+            Green channel offset: (21, 38) <br>
+            Red channel offset: (35, 77)
+        </em></p>
+        </div>
+    
+    <div class="gallery-item">
+        <img src="./media/lastochikino.jpg" alt="Lastochikino">
+        <p><em>Lastochikino <br>
+            Green channel offset: (-2, -3) <br>
+            Red channel offset: (-9, 75)
+                                            </em></p>
+        </div>
+    
+        <div class="gallery-item">
+            <img src="./media/lugano.jpg" alt="Lugano">
+            <p><em>Lugano <br>
+                Green channel offset: (-16, 41)<br>
+                Red channel offset: (-29, 93)
+                </em></p>
+            </div>
+        <div class="gallery-item">
+            <img src="./media/melons.jpg" alt="Melons">
+            <p><em>Melons <br>
+                Green channel offset: (11, 82)<br>
+                Red channel offset: (14, 179)
+                                </em></p>
+            </div>
+        <div class="gallery-item">
+            <img src="./media/self_portrait.jpg" alt="Self Portrait">
+            <p><em>Self Portrait <br>
+                Green channel offset: (29, 79) <br>
+                Red channel offset: (37, 176)
+                                                </em></p>
+            </div>
+        <div class="gallery-item">
+            <img src="./media/siren.jpg" alt="Siren">
+            <p><em>Siren <br>
+                Green channel offset: (-6, 49) <br>
+                Red channel offset: (-24, 96)
+            </em></p>
+            </div>
+
+        <div class="gallery-item">
+            <img src="./media/three_generations.jpg" alt="Three Generations">
+            <p><em>Three Generations <br>
+                Green channel offset: (14, 52) <br>
+                Red channel offset: (12, 111)
+                            </em></p>
+            </div>
+    </div>
+
+    <a href="../index.html" class="back">← Back to Portfolio</a>
+  </main>
+
+  <footer>
+    © 2025 Mallika Agrawal · Built with GitHub Pages
+  </footer>
+</body>
+</html>
