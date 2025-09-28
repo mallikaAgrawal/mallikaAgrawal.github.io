@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project 2 | CS180 – Fun with Filters & Frequencies</title>
+  <meta name="description" content="CS180/280A Project 2 showcase: Fun with Filters and Frequencies – convolution from scratch, finite differences, DoG, unsharp masking, hybrid images, Gaussian/Laplacian stacks, multiresolution blending (oraple)." />
+  <style>
+    :root {
+      --lavender: #E6E6FA;
+      --indigo-900: #483D8B; /* header */
+      --indigo-700: #6A5ACD; /* h2 */
+      --indigo-600: #7B68EE; /* underlines */
+      --indigo-500: #9370DB; /* borders */
+      --text: #2c2c2c;
+      --muted: #5a5a5a;
+      --card: #ffffff;
+      --success: #2e7d32;
+      --warn: #ef6c00;
+      --shadow: 0 2px 10px rgba(0,0,0,.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      background: var(--lavender);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ---------- Header ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--indigo-900);
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.18);
+    }
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .brand {
+      display: flex; align-items: center; gap: .75rem;
+    }
+    .brand img {
+      width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,.2));
+    }
+    .brand .title {
+      display: flex; flex-direction: column; line-height: 1.25;
+    }
+    .brand .title strong { font-size: 1.15rem; }
+    .brand .title span { font-size: .9rem; color: #E6E6FA; }
+
+    .meta {
+      text-align: right;
+      font-size: .9rem;
+      color: #E6E6FA;
+    }
+    .badge {
+      display: inline-block; padding: .2rem .5rem; border-radius: 999px; background: #fff1; color:#fff;
+      border: 1px solid #fff3; margin-left: .3rem; font-weight: 600; font-size: .75rem;
+    }
+
+    nav.toc {
+      background: #fff1;
+      border-top: 1px solid #ffffff28;
+    }
+    nav.toc .wrap {
+      max-width: 1100px; margin: 0 auto; padding: .35rem 1rem; display: flex; flex-wrap: wrap; gap: .6rem 1rem;
+    }
+    nav.toc a {
+      color: #E6E6FA; text-decoration: none; font-weight: 600; padding: .3rem .5rem; border-radius: 7px; transition: background .15s ease;
+    }
+    nav.toc a:hover { background: #ffffff22; }
+
+    /* ---------- Main ---------- */
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    h2 {
+      color: var(--indigo-700);
+      border-bottom: 3px solid var(--indigo-600);
+      padding-bottom: .4rem;
+      margin-top: 2.2rem;
+    }
+    h3 { color: var(--indigo-700); margin-top: 1.2rem; }
+
+    .lead {
+      background: var(--card);
+      border: 2px solid var(--indigo-500);
+      border-radius: var(--radius);
+      padding: 1rem 1rem;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+    }
+    .lead small { color: var(--muted); }
+
+    .grid {
+      display: grid; gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      margin: 1rem 0;
+    }
+.grid--multires {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns */
+  gap: 1rem;
+}
+
+.grid--multires .card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;    /* center the image */
+  justify-content: flex-start;
+  background: var(--card-bg, white);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 0.5rem;
+}
+
+.grid--multires img {
+  width: 100%;
+  height: auto;       /* keep aspect ratio */
+  object-fit: contain; /* make sure the whole image is visible */
+  display: block;
+}
+
+.grid--multires figcaption {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted-text, #444);
+}
+
+    /* Responsive */
+    @media (max-width: 1100px) {
+    .grid--multires { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 700px) {
+    .grid--multires { grid-template-columns: repeat(2, 1fr); }
+    }
+
+
+    .card {
+      background: var(--card);
+      border: 2px solid var(--indigo-500);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1rem;
+    }
+
+    figure { margin: 0; }
+    figure img { width: 100%; border-radius: 10px; border: 1px solid #0001; display:block; }
+    figcaption { font-size: .9rem; color: var(--muted); margin-top: .4rem; }
+
+    .code-card pre {
+      background: #0f0f16;
+      color: #e9e9f1;
+      padding: 1rem;
+      border-radius: 10px;
+      overflow: auto;
+      border: 1px solid #ffffff12;
+    }
+
+    .callout {
+      background: #fff;
+      border-left: 6px solid var(--indigo-600);
+      border-radius: 10px;
+      padding: .85rem 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    /* Simple before/after slider */
+    .ba { position: relative; overflow: hidden; border-radius: 12px; border: 2px solid var(--indigo-500); box-shadow: var(--shadow); }
+    .ba img { display:block; width:100%; height:auto; }
+    .ba .top { position:absolute; inset:0; width:50%; overflow:hidden; border-right: 2px solid #fff; }
+    .ba .handle { position:absolute; inset:0; pointer-events:none; }
+    .ba .handle::after { content: ""; position: absolute; left: calc(var(--pos, 50%) - 12px); top: 0; bottom: 0; width: 24px; background: #ffffffcc; border-left: 2px solid var(--indigo-500); border-right: 2px solid var(--indigo-500); }
+    .ba input[type=range] { position:absolute; inset:0; opacity:.0; width:100%; height:100%; cursor: ew-resize; }
+
+    .kpi { display:flex; gap:.6rem; flex-wrap:wrap; }
+    .kpi .pill { background:#fff; border:1px solid var(--indigo-500); color:var(--indigo-900); padding:.25rem .5rem; border-radius:999px; font-weight:700; }
+
+    footer {
+      text-align:center; margin: 3rem 0 2rem; color:#E6E6FA; background: var(--indigo-900);
+      padding: 1.2rem; border-top: 3px solid var(--indigo-600);
+    }
+
+    .top-link {
+      position: fixed; right: 14px; bottom: 14px; background: var(--indigo-900); color:#fff; border: 2px solid var(--indigo-500);
+      padding:.55rem .7rem; border-radius: 12px; text-decoration:none; font-weight:700; box-shadow: var(--shadow);
+    }
+    .top-link:hover { background: #3e357a; }
+
+    details {
+      background:#fff; border: 1px solid var(--indigo-500); border-radius: 10px; padding:.75rem 1rem; }
+    details summary { cursor: pointer; font-weight:700; color: var(--indigo-900); }
+
+    .small { font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero">
+        <div class="title">
+          <strong>Project 2: Fun with Filters & Frequencies</strong>
+          <span>CS180 · Intro to Computer Vision & Computational Photography</span>
+        </div>
+      </div>
+      <div></div>
+      <div class="meta">
+      </div>
+    </div>
+    <nav class="toc" aria-label="Table of contents">
+      <div class="wrap">
+        <a href="#intro">Intro</a>
+        <a href="#p11">1.1 Convolution</a>
+        <a href="#p12">1.2 Finite Differences</a>
+        <a href="#p13">1.3 DoG</a>
+        <a href="#p21">2.1 Unsharp Mask</a>
+        <a href="#p22">2.2 Hybrid Images</a>
+        <a href="#p23">2.3 Stacks</a>
+        <a href="#p24">2.4 Multires Blending</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="intro" class="lead" aria-labelledby="intro-h2">
+      <div>
+        <h2 id="intro-h2">Introduction</h2>
+        <p class="small">This page showcases my implementation and results for <em>Fun with Filters and Frequencies!</em> covering convolution from scratch, edge detection with finite differences, derivative-of-Gaussian filters, unsharp masking, hybrid images, Gaussian/Laplacian stacks, and multiresolution blending (the classic <strong>oraple</strong>).</p>
+      </div>
+      <aside>
+      </aside>
+    </section>
+    <!-- PROJECT SPEC (REFERENCE) -->
+<!-- PART 1.1 -->
+<section id="p11">
+  <h2>Part 1.1 · Convolutions from Scratch</h2>
+
+  <div class="card" style="margin-bottom:1rem">
+    <h3>Write-up (What I Did)</h3>
+    <p class="small">This section describes my approach to implementing convolutions from scratch.</p>
+    <ul class="small">
+      <li>Implemented a <strong>four-loop</strong> baseline to mirror the mathematical definition of convolution.</li>
+      <li>Optimized to a <strong>two-loop</strong> version by using numpy functions to do a batched sum and dot product with the kernel and image.</li>
+    </ul>
+  </div>
+
+  <!-- Two code cells side-by-side -->
+  <div class="grid">
+    <div class="card code-card" id="p11-code-4">
+      <h3>Four-loop baseline</h3>
+<pre><code class="language-python">import numpy as np
+
+def convolution_4_loops(image, kernel):
+    flipped_kernel = np.flipud(np.fliplr(kernel))
+    image_height, image_width = image.shape
+    kernel_height, kernel_width = kernel.shape
+    pad_height, pad_width = kernel_height // 2, kernel_width // 2
+    padded_image = np.pad(
+        image,
+        ((pad_height, pad_height), (pad_width, pad_width)),
+        mode='constant', constant_values=0
+    )
+    output = np.zeros_like(image)
+    for i in range(image_height):
+        for j in range(image_width):
+            for m in range(kernel_height):
+                for n in range(kernel_width):
+                    output[i, j] += padded_image[i+m, j+n] * flipped_kernel[m, n]
+    return output
+</code></pre>
+    </div>
+
+    <div class="card code-card" id="p11-code-2">
+      <h3>Two-loop version</h3>
+<pre><code class="language-python">import numpy as np
+
+def convolution_2_loops(image, kernel):
+    flipped_kernel = np.flipud(np.fliplr(kernel))
+    image_height, image_width = image.shape
+    kernel_height, kernel_width = kernel.shape
+    pad_height = kernel_height // 2
+    pad_width = kernel_width // 2
+    padded_image = np.pad(
+        image,
+        ((pad_height, pad_height), (pad_width, pad_width)),
+        mode='constant',
+        constant_values=0
+    )
+    output = np.zeros_like(image)
+    for i in range(image_height):
+        for j in range(image_width):
+            region = padded_image[i:i + kernel_height, j:j + kernel_width]
+            output[i, j] = np.sum(region * flipped_kernel)
+
+    return output
+</code></pre>
+    </div>
+  </div>
+
+  <!-- Results shown below both code cells -->
+<div class="card" style="margin-top:1rem">
+  <h3>Results: Box filter (9×9), Dx, Dy</h3>
+  <div class="grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:1rem;">
+    
+    <figure>
+      <img src="./media/1.1/selfie_original.jpg" alt="Original Selfie" />
+      <figcaption>Original Selfie</figcaption>
+    </figure>
+
+    <figure>
+      <img src="./media/1.1/selfie_blurred.jpg" alt="Blurred Selfie (Box filter)" />
+      <figcaption>Blurred Selfie (Box filter)</figcaption>
+    </figure>
+
+    <figure>
+      <img src="./media/1.1/selfie_dx.jpg" alt="Selfie Dx" />
+      <figcaption>Selfie Dx</figcaption>
+    </figure>
+
+    <figure>
+      <img src="./media/1.1/selfie_dy.jpg" alt="Selfie Dy" />
+      <figcaption>Selfie Dy</figcaption>
+    </figure>
+
+  </div>
+</div>
+    <div>
+    <h3>Reflection</h3>
+    <p class="small">The implementations I created had the same output as the scipy convolve function, but the runtime was higher. 
+        Convolution_4_loops took 0.6829 seconds, convolution_2_loops took 0.5441 seconds, and scipy.signal.convolve2d took 0.3294 seconds.
+
+        Overall, my implementations were competitive with the optimized scipy function likely due to the smaller image size, but for much larger images, I noticed that the built in function was significantly faster with a 10x or more speedup. 
+        For boundary handling, I padded the image with zeros so that the kernel can fully overlap every pixel, including those at 
+        the edges. This ensures that the output has the same dimensions as the input and avoids indexing errors. Zero-padding is a simple
+         approach and worked out well. Other approaches we've learned about include replicating the edge pixels or reflecting the image across the 
+        boundary. The choice of boundary handling can slightly affect the filtered result near the edges.
+    </p>
+  </div>
+
+</section>
+    <!-- PART 1.2 -->
+    <section id="p12">
+      <h2>Part 1.2 · Finite Difference Operator</h2>
+      <p>Using the classic finite difference kernels D<sub>x</sub> = [[-1, 0, 1]] and D<sub>y</sub> = [[-1], [0], [1]], I compute partials on <em>cameraman</em>, then gradient magnitude and a binarized edge map via a hand-picked threshold.</p>
+      <p> The original camera man:</p>
+        <figure class="card">
+            <img src="./media/1.2/cameraman.png" alt="Original Cameraman Image" />
+            <figcaption>Original Cameraman Image.</figcaption>
+        </figure>
+      
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/1.2/cameraman_dx.jpg" alt="cameraman Dx" />
+          <figcaption>Partial ∂/∂x.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_dy.jpg" alt="cameraman Dy" />
+          <figcaption>Partial ∂/∂y.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_gradient_magnitude.jpg" alt="gradient magnitude" />
+          <figcaption>Gradient magnitude = √(D<sub>x</sub>² + D<sub>y</sub>²).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_edge_image.jpg" alt="binarized edges" />
+          <figcaption>Edges after threshold 0.19 (chosen to suppress noise while preserving real edges).</figcaption>
+        </figure>
+      </div>
+        <p>The threshold I chose was to best separate the edges from the noise, ensuring that true edges were preserved 
+            while minimizing false positives. I wanted to keep the border around the image, and my personal preferences made 0.19 the most preferred since it had some noise but really cleanly showed the edges.</p>
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/1.2/cameraman_edge_image.JPG" alt="Ideal Threshold Choice of 0.19" />
+          <figcaption>Ideal Threshold Choice of 0.19.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_edge_image_15.JPG" alt="Threshold of 0.15" />
+          <figcaption>Threshold of 0.15.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_edge_image_20.JPG" alt="Threshold of 0.20" />
+          <figcaption>Threshold of 0.20.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.2/cameraman_edge_image_25.JPG" alt="Threshold of 0.25" />
+          <figcaption>Threshold of 0.25.</figcaption>
+        </figure>
+
+    </section>
+
+    <!-- PART 1.3 -->
+    <section id="p13">
+      <h2>Part 1.3 · Derivative of Gaussian (DoG)</h2>
+      <p>To reduce noise amplification, there were two approaches. One was to first smooth the image with the gaussian and then convolve with D<sub>x</sub> and D<sub>y</sub>, while another approach was to first convolve the gaussian with D<sub>x</sub> and D<sub>y</sub> to form the DoG Filters which then got convolved with the orignal image. Both of these routes yield the same result.</p>
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/1.3/gaussian_filter.JPG" alt="Gaussian Filter" />
+          <figcaption>Gaussian Filter.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/dog_filter_dx.JPG" alt="DOG Dx Filter" />
+          <figcaption>DoG<sub>x</sub> Filter.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/dog_filter_dy.JPG" alt="DOG Dy Filter" />
+          <figcaption>DoG<sub>y</sub> Filter.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/dog_dx.JPG" alt="DoG Dx Image" />
+          <figcaption>DoG Dx Applied to Cameraman.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/dog_dy.JPG" alt="DoG Dy Image" />
+          <figcaption>DoG Dy Applied to Cameraman.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/cameraman_gradient_magnitude_smoothed.JPG" alt="DoG Gradient Magnitude" />
+          <figcaption>DoG Gradient Magnitude.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/1.3/cameraman_edge_image_dog.JPG" alt="DoG Binarized Edges" />
+          <figcaption>DoG Binarized Edges (threshold 0.25).</figcaption>
+        </figure>
+      </div>
+      </div>
+      <p>Using the DoG filters significantly improved the edge detection results compared to the basic finite difference approach. The Gaussian smoothing inherent in the DoG filters helped suppress noise, resulting in cleaner gradient magnitude images and more accurate edge maps.</p>
+      </div>
+    </section>
+
+    <!-- PART 2.1 -->
+    <section id="p21">
+      <h2>Part 2.1 · Image “Sharpening” (Unsharp Mask)</h2>
+      <p>The unsharp mask technique enhances image sharpness by adding more of the high frequency content back into the image. 
+        The low frequency components are found from blurring the original image with a Gaussian filter. 
+        The high frequency content is obtained by subtracting the low frequency components from the original image.
+    The sharpened version of the image is created using the formula sharpened_im = original_im + α·high_frequencies.</p>
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/2.1/taj.jpg" alt="Taj Mahal" />
+          <figcaption>Taj Mahal.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/taj_sharpened_0.5.jpg" alt="Taj Mahal Sharpened (α=1.5)" />
+          <figcaption>Taj Mahal Sharpened (α=1.5).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/taj_blurred.jpg" alt="Taj Mahal Blurred" />
+          <figcaption>Taj Mahal Blurred.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/taj_high_frequencies.jpg" alt="Taj Mahal High Frequencies" />
+          <figcaption>Taj Mahal High Frequencies (Original − Blurred).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/taj_sharpened_2.jpg" alt="Taj Mahal Sharpened (α=2)" />
+          <figcaption>Taj Mahal Sharpened (α=2).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/taj_sharpened_4.jpg" alt="Taj Mahal Sharpened (α=4)" />
+          <figcaption>Taj Mahal Sharpened (α=4).</figcaption>
+        </figure>
+
+
+      </div>
+      <div>
+        Blurring and Sharpening a Skyline:
+      </div>
+            <div class="grid">
+        <figure class="card">
+          <img src="./media/2.1/skyline.jpg" alt="Skyline" />
+          <figcaption>Skyline.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/skyline_sharpened_5.jpg" alt="Skyline Sharpened (α=5)" />
+          <figcaption>Skyline Sharpened (α=5).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/skyline_blurred.jpg" alt="Skyline Blurred" />
+          <figcaption>Skyline Blurred.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/skyline_blurred_sharpened.jpg" alt="Skyline blurred then resharpened" />
+          <figcaption>Skyline blurred then resharpened.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/skyline_sharpened_10.jpg" alt="Skyline Sharpened (α=10)" />
+          <figcaption>Skyline Sharpened (α=10).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/skyline_sharpened_20.jpg" alt="Skyline Sharpened (α=20)" />
+          <figcaption>Skyline Sharpened (α=20).</figcaption>
+        </figure>
+
+      </div>
+      <div>
+        Blurring and Sharpening a Chameleon:
+      </div>
+            <div class="grid">
+        <figure class="card">
+          <img src="./media/2.1/chameleon.jpg" alt="Chameleon" />
+          <figcaption>Chameleon.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/chameleon_sharpened.jpg" alt="Chameleon Sharpened (α=5)" />
+          <figcaption>Chameleon Sharpened (α=5).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/chameleon_blurred.jpg" alt="Chameleon Blurred" />
+          <figcaption>Chameleon Blurred.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/chameleon_blurred_sharpened.jpg" alt="Chameleon blurred then resharpened" />
+          <figcaption>Chameleon blurred then resharpened.</figcaption>
+        </figure>
+                <figure class="card">
+          <img src="./media/2.1/chameleon_sharpened_10.jpg" alt="Chameleon Sharpened (α=10)" />
+          <figcaption>Chameleon Sharpened (α=10).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.1/chameleon_sharpened_20.jpg" alt="Chameleon Sharpened (α=20)" />
+          <figcaption>Chameleon Sharpened (α=20).</figcaption>
+        </figure>
+
+        
+      </div>
+
+
+    </section>
+    <style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 images per row */
+    gap: 1rem; /* spacing between items */
+  }
+
+  .card img {
+    width: 100%;
+    border-radius: 8px;
+  }
+
+  .card {
+    text-align: center;
+  }
+</style>
+
+
+    <!-- PART 2.2 -->
+    <section id="p22">
+      <h2>Part 2.2 · Hybrid Images</h2>
+      <p>.</p>
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/2.2/cat.jpg" alt="Cat" />
+          <figcaption>Cat.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/dog.jpg" alt="Dog" />
+          <figcaption>Dog.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/cat_log_magnitude.png" alt="Cat Log Magnitude FFT" />
+          <figcaption>Cat Log Magnitude FFT.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/dog_log_magnitude.png" alt="Dog Log Magnitude FFT" />
+          <figcaption>Dog Log Magnitude FFT.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/cat_hf_image.jpg" alt="Cat High Frequencies" />
+          <figcaption>Cat High Frequencies.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/dog_lf_image.jpg" alt="Dog Low Frequencies" />
+          <figcaption>Dog Low Frequencies.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/hybrid_dog.jpg" alt="Hybrid Image (Cat + Dog)" />
+          <figcaption>Hybrid Image (Cat + Dog).</figcaption>
+        </figure>
+      </div>
+              <div class="grid">
+        <figure class="card">
+          <img src="./media/2.2/nutmeg.jpg" alt="Nutmeg" />
+          <figcaption>Nutmeg.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/DerekPicture.jpg" alt="Derek" />
+          <figcaption>Derek.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/cat_derek_hybrid.png" alt="Cat + Derek Hybrid" />
+          <figcaption>Cat + Derek Hybrid.</figcaption>
+        </figure>
+      </div>
+                    <div class="grid">
+        <figure class="card">
+          <img src="./media/2.2/superman.jpg" alt="Superman" />
+          <figcaption>Superman.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/clark_kent.jpg" alt="Clark Kent" />
+          <figcaption>Clark Kent.</figcaption>
+        </figure>
+                        <figure class="card">
+          <img src="./media/2.2/hybrid_superman.jpg" alt="Superman + Clark Kent Hybrid" />
+          <figcaption>Superman + Clark Kent Hybrid.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- PART 2.3 -->
+    <section id="p23">
+      <h2>Part 2.3 · Gaussian & Laplacian Stacks</h2>
+      <p>Stacks (no downsampling) preserve image size at each level for direct visualization. Laplacian levels are band-pass residuals between Gaussian levels.</p>
+      <div class="grid">
+        <figure class="card">
+          <img src="./media/p23_gauss_stack.jpg" alt="gaussian stack" />
+          <figcaption>Gaussian stack (levels 0→N).</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/p23_lap_stack.jpg" alt="laplacian stack" />
+          <figcaption>Laplacian stack bands visualized.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/p23_lincoln.jpg" alt="lincoln visualization" />
+          <figcaption>Lincoln example recreation (cf. Szeliski Fig 3.42).</figcaption>
+        </figure>
+      </div>
+      <div class="card code-card" id="p23-code">
+        <h3>Stacks from scratch</h3>
+<pre><code class="language-python">def gaussian_stack(img, levels, ks=9, sigma=2.0):
+    Gk = gaussian_kernel(ks, sigma)
+    Gs = [img]
+    for _ in range(1, levels):
+        Gs.append(convolve2d_from_scratch(Gs[-1], Gk))
+    return Gs
+
+def laplacian_stack(img, levels, ks=9, sigma=2.0):
+    Gs = gaussian_stack(img, levels, ks, sigma)
+    Ls = []
+    for i in range(levels-1):
+        Ls.append(Gs[i] - Gs[i+1])
+    Ls.append(Gs[-1])
+    return Gs, Ls</code></pre>
+      </div>
+    </section>
+
+    <!-- PART 2.4 -->
+    <section id="p24">
+      <h2>Part 2.4 · Multiresolution Blending (a.k.a. the oraple!)</h2>
+      <p>Blend two images via Laplacian stacks and a Gaussian stack of the mask. I demo vertical/horizontal seams (apple+orange) and two irregular masks.</p>
+                <h3>Apple Laplacian Stack</h3>
+      <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_0.jpg" alt="Apple Laplacian Level 0" />
+      <figcaption>Apple Laplacian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_1.jpg" alt="Apple Laplacian Level 1" />
+      <figcaption>Apple Laplacian Level 1.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_2.jpg" alt="Apple Laplacian Level 2" />
+      <figcaption>Apple Laplacian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_3.jpg" alt="Apple Laplacian Level 3" />
+      <figcaption>Apple Laplacian Level 3.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_4.jpg" alt="Apple Laplacian Level 4" />
+      <figcaption>Apple Laplacian Level 4.</figcaption>
+      </figure>
+      </div>
+        
+            <h3>Orange Laplacian Stack</h3>
+    <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_0.jpg" alt="Orange Laplacian Level 0" />
+      <figcaption>Orange Laplacian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_1.jpg" alt="Orange Laplacian Level 1" />
+      <figcaption>Orange Laplacian Level 1.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_2.jpg" alt="Orange Laplacian Level 2" />
+      <figcaption>Orange Laplacian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_3.jpg" alt="Orange Laplacian Level 3" />
+      <figcaption>Orange Laplacian Level 3.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_4.jpg" alt="Orange Laplacian Level 4" />
+      <figcaption>Orange Laplacian Level 4.</figcaption>
+      </figure>
+      </div>
+
+        <h3>Hybrid Image (Oraple) Laplacian Stack</h3>
+        <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_0.jpg" alt="Oraple Hybrid Level 0" />
+      <figcaption>Oraple Hybrid Level 0.</figcaption>
+      </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_1.jpg" alt="Oraple Hybrid Level 1" />
+      <figcaption>Oraple Hybrid Level 1.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_2.jpg" alt="Oraple Hybrid Level 2" />
+      <figcaption>Oraple Hybrid Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_3.jpg" alt="Oraple Hybrid Level 3" />
+      <figcaption>Oraple Hybrid Level 3.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_4.jpg" alt="Oraple Hybrid Level 4" />
+      <figcaption>Oraple Hybrid Level 4.</figcaption>
+    </figure>
+    </div>
+    <h3>Apple Gaussian Stack</h3>
+        <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/apple_gaussian_level_0.jpg" alt="Apple Gaussian Level 0" />
+      <figcaption>Apple Gaussian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_gaussian_level_1.jpg" alt="Apple Gaussian Level 1" />
+      <figcaption>Apple Gaussian Level 1.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_gaussian_level_2.jpg" alt="Apple Gaussian Level 2" />
+      <figcaption>Apple Gaussian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_gaussian_level_3.jpg" alt="Apple Gaussian Level 3" />
+      <figcaption>Apple Gaussian Level 3.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_gaussian_level_4.jpg" alt="Apple Gaussian Level 4" />
+      <figcaption>Apple Gaussian Level 4.</figcaption>
+    </figure>
+    </div>
+    <h3>Orange Gaussian Stack</h3>
+        <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/orange_gaussian_level_0.jpg" alt="Orange Gaussian Level 0" />
+      <figcaption>Orange Gaussian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_gaussian_level_1.jpg" alt="Orange Gaussian Level 1" />
+      <figcaption>Orange Gaussian Level 1.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_gaussian_level_2.jpg" alt="Orange Gaussian Level 2" />
+      <figcaption>Orange Gaussian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_gaussian_level_3.jpg" alt="Orange Gaussian Level 3" />
+      <figcaption>Orange Gaussian Level 3.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_gaussian_level_4.jpg" alt="Orange Gaussian Level 4" />
+      <figcaption>Orange Gaussian Level 4.</figcaption>
+    </figure>
+    </div>
+      <h3>Recreate Figure 3.42</h3>
+      <div class="grid--multires">
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_0.jpg" alt="Apple Laplacian Level 0" />
+      <figcaption>Apple Laplacian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_0.jpg" alt="Orange Laplacian Level 0" />
+      <figcaption>Orange Laplacian Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_0.jpg" alt="Oraple Hybrid Level 0" />
+      <figcaption>Oraple Hybrid Level 0.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_2.jpg" alt="Apple Laplacian Level 2" />
+      <figcaption>Apple Laplacian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_2.jpg" alt="Orange Laplacian Level 2" />
+      <figcaption>Orange Laplacian Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_2.jpg" alt="Oraple Hybrid Level 2" />
+      <figcaption>Oraple Hybrid Level 2.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_laplacian_level_4.jpg" alt="Apple Laplacian Level 4" />
+      <figcaption>Apple Laplacian Level 4.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_laplacian_level_4.jpg" alt="Orange Laplacian Level 4" />
+      <figcaption>Orange Laplacian Level 4.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_hybrid_level_4.jpg" alt="Oraple Hybrid Level 4" />
+      <figcaption>Oraple Hybrid Level 4.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/apple_only_blended.jpg" alt="Apple Only Blended" />
+      <figcaption>Apple Only Blended.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/orange_only_blended.jpg" alt="Orange Only Blended" />
+      <figcaption>Orange Only Blended.</figcaption>
+    </figure>
+    <figure class="card">
+      <img src="./media/2.3/oraple_blended.jpg" alt="Oraple Blended" />
+      <figcaption>Oraple Blended.</figcaption>
+  </div>
+        <p>In the above recreation, I used the Laplacian stacks of the apple and orange images to blend them together at different levels. 
+            The first level (level 0) contains the low frequency content, while the higher levels contain the high frequency details. 
+            The final blended image combines these components to create a smooth transition between the two images.</p>
+        <h3>Fantasy Door Example</h3>
+        <div class="grid--multires">
+        <figure class="card">
+        <img src="./media/2.3/doorway.jpg" alt="Doorway" />
+        <figcaption>Doorway.</figcaption>
+        </figure>
+        <figure class="card">
+        <img src="./media/2.3/fantasy.jpg" alt="Fantasy Background" />
+        <figcaption>Fantasy Background.</figcaption>
+        </figure>
+        <figure class="card">
+        <img src="./media/2.3/door_fantasy_blended.jpg" alt="Door Fantasy Blended" />
+        <figcaption>Door Fantasy Blended.</figcaption>
+        </figure>
+        </div>
+        <p> This is the custom mask I made using GIMP:</p>
+        <figure class="card">
+          <img src="./media/2.3/mask.jpg" alt="Custom Mask" />
+          <figcaption>Custom Mask.</figcaption>
+        </figure>
+                <h3>Rainbow on a Grass Field Example</h3>
+        <div class="grid--multires">
+        <figure class="card">
+        <img src="./media/2.3/rainbow.jpg" alt="Rainbow" />
+        <figcaption>Rainbow.</figcaption>
+        </figure>
+        <figure class="card">
+        <img src="./media/2.3/field.jpg" alt="Field" />
+        <figcaption>Field.</figcaption>
+        </figure>
+        <figure class="card">
+        <img src="./media/2.3/rainbow_field_blended.jpg" alt="Rainbow Field Blended" />
+        <figcaption>Rainbow Field Blended.</figcaption>
+        </figure>
+        </div>
+</section>
+
+    </section>
+
+    <section id="reflection">
+      <h2>Takeaway</h2>
+      <p class="card">The most important thing I learned: <em>frequency-domain thinking clarifies why spatial filters behave the way they do.</em> Blurring, edge detection, sharpening, and blending are all just different ways of sculpting the spectrum.</p>
+    </section>
+  </main>
+
+  <a href="#top" class="top-link" title="Back to top">↑ Top</a>
+
+  <footer>
+    © 2025 Mallika Agrawal · Built for CS180 · Hosted on GitHub Pages
+  </footer>
+
+  <script>
+    // Before/After slider logic
+    document.querySelectorAll('[data-ba]').forEach(function(ba){
+      const top = ba.querySelector('.top');
+      const range = ba.querySelector('input[type=range]');
+      const handle = ba.querySelector('.handle');
+      function update(v){
+        const pct = (v||range.value) + '%';
+        top.style.width = pct;
+        ba.style.setProperty('--pos', pct);
+      }
+      range.addEventListener('input', e=> update(e.target.value));
+      update(50);
+    });
+  </script>
+</body>
+</html>
