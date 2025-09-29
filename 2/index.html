@@ -168,11 +168,14 @@
       color: #e9e9f1;
       padding: 1rem;
       border-radius: 10px;
+      text-align: left;
       overflow: auto;
       border: 1px solid #ffffff12;
     }
+
     .code-card {
-    justify-self: start;
+        justify-self: start;
+        text-align: left;
     }
 
     .callout {
@@ -440,17 +443,26 @@ def convolution_2_loops(image, kernel):
         </figure>
       </div>
       </div>
-      <p>Using the DoG filters significantly improved the edge detection results compared to the basic finite difference approach. The Gaussian smoothing inherent in the DoG filters helped suppress noise, resulting in cleaner gradient magnitude images and more accurate edge maps.</p>
+      <p>Using the DoG filters significantly improved the edge detection results compared to the basic finite difference approach. 
+        The Gaussian smoothing inherent in the DoG filters helped suppress noise, resulting in cleaner gradient magnitude images and
+         more accurate edge maps. There used to be a lot of dots near the base of the camera even with the ideal threshold choice, which 
+        made the image look less clean, but now with the extra convolution with the Gaussian, those dates are mostly gone and it also didn't
+    cause the edges to get dotted or become less continuous and clean. It was a win-win!</p>
       </div>
     </section>
 
     <!-- PART 2.1 -->
     <section id="p21">
       <h2>Part 2.1 · Image “Sharpening” (Unsharp Mask)</h2>
-      <p>The unsharp mask technique enhances image sharpness by adding more of the high frequency content back into the image. 
-        The low frequency components are found from blurring the original image with a Gaussian filter. 
+      <p>The unsharp mask technique enhances image sharpness by adding more of the high frequency content back into the image. The naive implementation is as follows:
+        The low frequency components are found from blurring the original image with a Gaussian filter.
         The high frequency content is obtained by subtracting the low frequency components from the original image.
-    The sharpened version of the image is created using the formula sharpened_im = original_im + α·high_frequencies.</p>
+    The sharpened version of the image is created using the formula sharpened_im = original_im + α·high_frequencies.
+
+        In order to create an unsharp mask filter directly, we can combine the steps into a single convolution operation. 
+        We use a 2D Gaussian kernel and a delta function (same size as the Gaussian kernel with a 1 in the center and 0s elsewhere).
+        The unsharp mask filter is then defined as: unsharp_mask_filter = (1+α)·delta_function - α·gaussian_kernel.
+</p>
       <div class="grid">
         <figure class="card">
           <img src="./media/2.1/taj.jpg" alt="Taj Mahal" />
@@ -564,7 +576,7 @@ def convolution_2_loops(image, kernel):
     <!-- PART 2.2 -->
     <section id="p22">
       <h2>Part 2.2 · Hybrid Images</h2>
-      <p>.</p>
+      <h3>Cat + Dog Hybrid</h3>
       <div class="grid">
         <figure class="card">
           <img src="./media/2.2/cat.jpg" alt="Cat" />
@@ -590,11 +602,36 @@ def convolution_2_loops(image, kernel):
           <img src="./media/2.2/dog_lf_image.jpg" alt="Dog Low Frequencies" />
           <figcaption>Dog Low Frequencies.</figcaption>
         </figure>
+                <figure class="card">
+          <img src="./media/2.2/sharpened_hp_image_fft.png" alt="Cat HF Log Magnitude FFT" />
+          <figcaption>Cat HF Log Magnitude FFT.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="./media/2.2/blurred_lp_image_fft.jpg" alt="Dog LF Log Magnitude FFT" />
+          <figcaption>Dog LF Log Magnitude FFT.</figcaption>
+        </figure>
+
         <figure class="card">
           <img src="./media/2.2/hybrid_dog.jpg" alt="Hybrid Image (Cat + Dog)" />
           <figcaption>Hybrid Image (Cat + Dog).</figcaption>
         </figure>
+        <figure class="card">
+          <img src="./media/2.2/hybrid_fft.png" alt="Hybrid Image Log Magnitude FFT" />
+          <figcaption>Hybrid Image Log Magnitude FFT.</figcaption>
+        </figure>
       </div>
+      <p> The cutoff frequency is inversely related to sigma in the Gaussian filter.
+        I used sigma = 8 for both the high-pass and low-pass filters to create the hybrid images.
+         This value provided a good balance between preserving important features from both images 
+         while effectively separating the frequency components. A lower sigma would have resulted 
+         in less effective separation, while a higher sigma could have overly blurred the 
+         low-frequency image and removed too much detail from the high-frequency image.
+
+         I played around with many different sigma values, but I liked 8 
+         and thought the image looked the best when using the same value for both as it allowed the images to be well aligned in the frequency cutoff.
+        
+      </p>
+        <h3>Nutmeg + Derek Hybrid</h3>
               <div class="grid">
         <figure class="card">
           <img src="./media/2.2/nutmeg.jpg" alt="Nutmeg" />
@@ -609,6 +646,7 @@ def convolution_2_loops(image, kernel):
           <figcaption>Cat + Derek Hybrid.</figcaption>
         </figure>
       </div>
+        <h3>Superman + Clark Kent Hybrid</h3>
                     <div class="grid">
         <figure class="card">
           <img src="./media/2.2/superman.jpg" alt="Superman" />
@@ -625,47 +663,10 @@ def convolution_2_loops(image, kernel):
       </div>
     </section>
 
-    <!-- PART 2.3 -->
-    <section id="p23">
-      <h2>Part 2.3 · Gaussian & Laplacian Stacks</h2>
-      <p>Stacks (no downsampling) preserve image size at each level for direct visualization. Laplacian levels are band-pass residuals between Gaussian levels.</p>
-      <div class="grid">
-        <figure class="card">
-          <img src="./media/p23_gauss_stack.jpg" alt="gaussian stack" />
-          <figcaption>Gaussian stack (levels 0→N).</figcaption>
-        </figure>
-        <figure class="card">
-          <img src="./media/p23_lap_stack.jpg" alt="laplacian stack" />
-          <figcaption>Laplacian stack bands visualized.</figcaption>
-        </figure>
-        <figure class="card">
-          <img src="./media/p23_lincoln.jpg" alt="lincoln visualization" />
-          <figcaption>Lincoln example recreation (cf. Szeliski Fig 3.42).</figcaption>
-        </figure>
-      </div>
-      <div class="card code-card" id="p23-code">
-        <h3>Stacks from scratch</h3>
-<pre><code class="language-python">def gaussian_stack(img, levels, ks=9, sigma=2.0):
-    Gk = gaussian_kernel(ks, sigma)
-    Gs = [img]
-    for _ in range(1, levels):
-        Gs.append(convolve2d_from_scratch(Gs[-1], Gk))
-    return Gs
-
-def laplacian_stack(img, levels, ks=9, sigma=2.0):
-    Gs = gaussian_stack(img, levels, ks, sigma)
-    Ls = []
-    for i in range(levels-1):
-        Ls.append(Gs[i] - Gs[i+1])
-    Ls.append(Gs[-1])
-    return Gs, Ls</code></pre>
-      </div>
-    </section>
-
-    <!-- PART 2.4 -->
+    <!-- PART 2.3+2.4 -->
     <section id="p24">
-      <h2>Part 2.4 · Multiresolution Blending (a.k.a. the oraple!)</h2>
-      <p>Blend two images via Laplacian stacks and a Gaussian stack of the mask. I demo vertical/horizontal seams (apple+orange) and two irregular masks.</p>
+      <h2>Part 2.3 + 2.4 · Multiresolution Blending (a.k.a. the oraple!)</h2>
+      <p>Blend two images via Laplacian stacks and a Gaussian stack of the mask. I used vertical/horizontal seams (apple+orange) and one irregular mask.</p>
                 <h3>Apple Laplacian Stack</h3>
       <div class="grid--multires">
     <figure class="card">
@@ -873,12 +874,6 @@ def laplacian_stack(img, levels, ks=9, sigma=2.0):
         </div>
 </section>
 
-    </section>
-
-    <section id="reflection">
-      <h2>Takeaway</h2>
-      <p class="card">The most important thing I learned: <em>frequency-domain thinking clarifies why spatial filters behave the way they do.</em> Blurring, edge detection, sharpening, and blending are all just different ways of sculpting the spectrum.</p>
-    </section>
   </main>
 
   <a href="#top" class="top-link" title="Back to top">↑ Top</a>
