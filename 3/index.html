@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project 3A | CS180 – Image Warping & Mosaicing</title>
+  <meta name="description" content="CS180/280A Project 3A: Image Warping & Mosaicing – correspondences, least-squares homography, inverse warping with nearest/bilinear interpolation, rectification, and mosaic blending." />
+  <style>
+    :root {
+      --lavender: #E6E6FA;
+      --indigo-900: #483D8B; /* header */
+      --indigo-700: #6A5ACD; /* h2 */
+      --indigo-600: #7B68EE; /* underlines */
+      --indigo-500: #9370DB; /* borders */
+      --text: #2c2c2c;
+      --muted: #5a5a5a;
+      --card: #ffffff;
+      --success: #2e7d32;
+      --warn: #ef6c00;
+      --shadow: 0 2px 10px rgba(0,0,0,.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      background: var(--lavender);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ---------- Header ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--indigo-900);
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.18);
+    }
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .brand { display:flex; align-items:center; gap:.75rem; }
+    .brand img { width:48px; height:48px; object-fit:contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,.2)); }
+    .brand .title { display:flex; flex-direction:column; line-height:1.25; }
+    .brand .title strong { font-size: 1.15rem; }
+    .brand .title span { font-size: .9rem; color: #E6E6FA; }
+
+    .meta { text-align:right; font-size:.9rem; color:#E6E6FA; }
+    .badge { display:inline-block; padding:.2rem .5rem; border-radius:999px; background:#fff1; color:#fff; border:1px solid #fff3; margin-left:.3rem; font-weight:600; font-size:.75rem; }
+
+    nav.toc { background:#fff1; border-top:1px solid #ffffff28; }
+    nav.toc .wrap { max-width:1100px; margin:0 auto; padding:.35rem 1rem; display:flex; flex-wrap:wrap; gap:.6rem 1rem; }
+    nav.toc a { color:#E6E6FA; text-decoration:none; font-weight:600; padding:.3rem .5rem; border-radius:7px; transition: background .15s ease; }
+    nav.toc a:hover { background:#ffffff22; }
+
+    /* ---------- Main ---------- */
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    h2 { color: var(--indigo-700); border-bottom: 3px solid var(--indigo-600); padding-bottom:.4rem; margin-top: 2.2rem; }
+    h3 { color: var(--indigo-700); margin-top:1.2rem; }
+
+    .lead {
+      background: var(--card);
+      border: 2px solid var(--indigo-500);
+      border-radius: var(--radius);
+      padding: 1rem 1rem;
+      box-shadow: var(--shadow);
+      display: grid; grid-template-columns: 1fr auto; gap: 1rem;
+    }
+    .lead small { color: var(--muted); }
+
+    .card { background: var(--card); border: 2px solid var(--indigo-500); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem; }
+    .muted { color: var(--muted); }
+
+    .grid { display:grid; gap:1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 1rem 0; }
+    figure { margin: 0; }
+    figure img { width:100%; border-radius:10px; border:1px solid #0001; display:block; }
+    figcaption { font-size:.9rem; color: var(--muted); margin-top:.4rem; }
+
+    .code-card pre { background:#0f0f16; color:#e9e9f1; padding:1rem; border-radius:10px; text-align:left; overflow:auto; border:1px solid #ffffff12; }
+    .code-card { justify-self:start; text-align:left; }
+
+    .kpi { display:flex; gap:.6rem; flex-wrap:wrap; }
+    .kpi .pill { background:#fff; border:1px solid var(--indigo-500); color:var(--indigo-900); padding:.25rem .5rem; border-radius:999px; font-weight:700; }
+
+    .callout { background:#fff; border-left:6px solid var(--indigo-600); border-radius:10px; padding:.85rem 1rem; box-shadow: var(--shadow); }
+
+    /* Before/After slider */
+    .ba { position: relative; overflow: hidden; border-radius: 12px; border: 2px solid var(--indigo-500); box-shadow: var(--shadow); }
+    .ba img { display:block; width:100%; height:auto; }
+    .ba .top { position:absolute; inset:0; width:50%; overflow:hidden; border-right: 2px solid #fff; }
+    .ba .handle { position:absolute; inset:0; pointer-events:none; }
+    .ba .handle::after { content: ""; position: absolute; left: calc(var(--pos, 50%) - 12px); top: 0; bottom: 0; width: 24px; background: #ffffffcc; border-left: 2px solid var(--indigo-500); border-right: 2px solid var(--indigo-500); }
+    .ba input[type=range] { position:absolute; inset:0; opacity:.0; width:100%; height:100%; cursor: ew-resize; }
+
+    footer { text-align:center; margin: 3rem 0 2rem; color:#E6E6FA; background: var(--indigo-900); padding: 1.2rem; border-top: 3px solid var(--indigo-600); }
+    .top-link { position: fixed; right: 14px; bottom: 14px; background: var(--indigo-900); color:#fff; border: 2px solid var(--indigo-500); padding:.55rem .7rem; border-radius: 12px; text-decoration:none; font-weight:700; box-shadow: var(--shadow); }
+    .top-link:hover { background: #3e357a; }
+
+    details { background:#fff; border: 1px solid var(--indigo-500); border-radius: 10px; padding:.75rem 1rem; }
+    details summary { cursor: pointer; font-weight:700; color: var(--indigo-900); }
+    .small { font-size:.92rem; }
+  </style>
+</head>
+<script>
+    MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+  
+<body>
+  <header>
+    <div class="hero">
+      <div class="brand">
+        <img src="./media/ucb_seal.png" alt="UC Berkeley Logo"/>
+        <div class="title">
+          <strong>Project 3A: Image Warping & Mosaicing</strong>
+          <span>CS180/280A · Intro to Computer Vision & Computational Photography</span>
+        </div>
+      </div>
+      <div></div>
+      <div class="meta">
+        <span class="badge">proj3A</span>
+        <span class="badge">Homographies</span>
+        <span class="badge">Inverse Warping</span>
+        <span class="badge">Mosaics</span>
+      </div>
+    </div>
+    <nav class="toc" aria-label="Table of contents">
+      <div class="wrap">
+        <a href="#intro">Intro</a>
+        <a href="#a1">A.1 Shoot Pictures</a>
+        <a href="#a2">A.2 Recover Homographies</a>
+        <a href="#a3">A.3 Warp & Rectify</a>
+        <a href="#a4">A.4 Blend Mosaics</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="intro" class="lead" aria-labelledby="intro-h2">
+      <div>
+        <h2 id="intro-h2">Introduction</h2>
+        <p class="small">The goal of this assignment is to implement key parts of <em>image warping</em> with a practical application—<strong>image mosaicing</strong>. I collect overlapping photos, recover pairwise homographies via least squares, perform <em>inverse warping</em> with both nearest-neighbor and bilinear interpolation, and composite the results into clean mosaics using feathering (and optional multi-band blending). I also demonstrate image <strong>rectification</strong> as a unit test for the pipeline.</p>
+        <div class="kpi">
+          <span class="pill">Homography</span>
+          <span class="pill">NN & Bilinear</span>
+          <span class="pill">Rectification</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="a1">
+      <h2>A.1 · Shoot and Digitize Pictures (20 pts)</h2>
+      <div class="card">
+        <h3>Data Collection</h3>
+        <p class="small">I shot 2–3 image sequences by rotating the camera around a (roughly) fixed center of projection with 40–70% overlap. I avoided strong barrel distortion and captured scenes with rich texture (buildings/interiors). Below I show two sets with projective relationships.</p>
+        <div class="grid">
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_1.jpg" alt="Set 1 – Image 1" />
+            <figcaption>Set 1 – Image 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_2.jpg" alt="Set 1 – Image 2" />
+            <figcaption>Set 1 – Image 2.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_3.jpg" alt="Set 1 – Image 3" />
+            <figcaption>Set 1 – Image 3.</figcaption>
+          </figure>
+
+          <figure>
+            <img src="./media/projective_transformation_images/soda_1.png" alt="Set 2 – Image 1" />
+            <figcaption>Set 2 – Image 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/soda_2.png" alt="Set 2 – Image 2" />
+            <figcaption>Set 2 – Image 2.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/soda_3.png" alt="Set 2 – Image 3" />
+            <figcaption>Set 2 – Image 3.</figcaption>
+          </figure>
+
+        </div>
+        <details><summary>Tips I followed</summary>
+          <ul class="small">
+            <li>Shot the images all in one go to minimize lighting/scene chnages.</li>
+            <li>Ensured generous overlap.</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <section id="a2">
+      <h2>A.2 · Recover Homographies</h2>
+      <div class="card">
+        <h3>Method</h3>
+        <p>
+            Given correspondences \( (\mathbf{p}_i, \mathbf{p}'_i) \) between two images,
+            I solve \(\mathbf{p}' \sim H \mathbf{p}\) for the 3×3 homography \(H\)
+            (8 DoF; bottom-right fixed to 1). For each pair, I build a linear system
+            \(A\,\mathbf{h} = \mathbf{b}\) and solve via least squares
+            \(\min\limits_{\mathbf{h}}\lVert A\,\mathbf{h} - \mathbf{b} \rVert_2\).
+            Using &gt;4 points stabilizes the estimate.
+          </p>
+                  <h3>Correspondences Visualization</h3>
+        <div class="grid">
+          <figure>
+            <img src="./media/part2/campanile_vis_im1.png" alt="Set 1 Im 1 Correspondences" />
+            <figcaption>Set 1: clicked correspondences (colored pairs).</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/part2/campanile_vis_im2.png" alt="Set 1 Im 1 Correspondences" />
+            <figcaption>Set 1: clicked correspondences (colored pairs).</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/part2/campanile_vis_im3.png" alt="Set 1 Im 1 Correspondences" />
+            <figcaption>Set 1: clicked correspondences (colored pairs).</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/part2/soda_vis_im1.png" alt="Set 2 Im 1 Correspondences" />
+            <figcaption>Set 2 Im 1 Correspondences</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/part2/soda_vis_im2.png" alt="Set 2 Im 2 Correspondences" />
+            <figcaption>Set 2 Im 2 Correspondences</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/part2/soda_vis_im3.png" alt="Set 2 Im 3 Correspondences" />
+            <figcaption>Set 2 Im 3 Correspondences</figcaption>
+          </figure>
+        </div>
+        <div class="card" style="margin-top:1rem">
+            <h3>Mathematical Formulation (Ah = b)</h3>
+            <p class="small">
+            We model corresponding points between two images with a homography H in homogeneous coordinates.
+            </p>
+            <pre><code>H = [ [h11 h12 h13]
+            [h21 h22 h23]
+            [h31 h32 1 ] ] (8 unknowns; bottom-right fixed to 1)
+            
+            
+            Given source p = (x, y, 1)^T and destination p' = (u, v, 1)^T:
+            
+            
+            u = (h11 x + h12 y + h13) / (h31 x + h32 y + 1)
+            v = (h21 x + h22 y + h23) / (h31 x + h32 y + 1)
+            
+            
+            Rearrange to get two linear equations per correspondence:
+            
+            
+            u = h11 x + h12 y + h13 - u (h31 x + h32 y)
+            v = h21 x + h22 y + h23 - v (h31 x + h32 y)
+            </code></pre>
+            <p class="small">
+            Stacking all pairs yields a linear system A h = b with unknown vector
+            h = [h11, h12, h13, h21, h22, h23, h31, h32]^T:
+            </p>
+            <pre><code>For each (x, y) -> (u, v):
+            Row 2i: [x y 1 0 0 0 -u x -u y] · h = u
+            Row 2i + 1: [0 0 0 x y 1 -v x -v y] · h = v
+            
+            
+            A in R^{2N×8}, b in R^{2N}
+            </code></pre>
+            <p class="small">
+            Since there are 8 unknowns, 4 point pairs (N ≥ 4) is the minimum. In practice we use more for stability and
+            solve by least squares: h* = argmin_h ||A h - b||_2, then form H and set H[2,2] = 1.
+            <br/>For the Campanile set here, we used N = 11 correspondences -> 22 equations.
+            </p>
+            
+            
+            <h3>Recovered Homography Matrix</h3>
+            <pre><code>H ≈
+            [[ 6.86040239e-01 1.36901208e-02 1.11687677e+02]
+            [-2.21189016e-01 8.47227092e-01 5.70572327e+01]
+            [-5.79765739e-04 -5.30379743e-05 1.00000000e+00]]
+            </code></pre>
+            <p class="small muted">(Normalized with H[2,2] = 1. Solved via <code>np.linalg.lstsq</code>.)</p>
+            </section>
+
+    <section id="a3">
+      <h2>A.3 · Warp the Images & Rectify (20 pts)</h2>
+      <div class="card" style="margin-bottom:1rem">
+        <h3>Inverse Warping & Interpolation</h3>
+        <p class="small">I implemented <strong>inverse warping</strong> so that every output pixel samples from the source via \(H^{-1}\). Two interpolation modes are supported from scratch:</p>
+        <ul class="small">
+          <li><strong>Nearest Neighbor</strong>: round fractional coords.</li>
+          <li><strong>Bilinear</strong>: blend the 4-neighborhood by area weights.</li>
+        </ul>
+          </div>
+        </div>
+      <div class="card">
+        <h3>Rectification (2+ examples)</h3>
+        <div class="grid">
+            <figure>
+              <img src="./media/rectification/warped_cover_min.jpg" alt="Source Image" />
+              <figcaption>Source Image.</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/rectification/warped_cover_nn.jpg" alt="Warp via Nearest Neighbor" />
+                <figcaption>Warp via Nearest Neighbor.</figcaption>
+              </figure>
+            <figure>
+            <img src="./media/rectification/warped_cover_bilinear.jpg" alt="Warp via Billinear Interpolation" />
+            <figcaption>Warp via Billinear Interpolation.</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/rectification/warped_mousepad_min.jpg" alt="Source Image" />
+                <figcaption>Source Image.</figcaption>
+              </figure>
+              <figure>
+                  <img src="./media/rectification/warped_mousepad_nn.jpg" alt="Warp via Nearest Neighbor" />
+                  <figcaption>Warp via Nearest Neighbor.</figcaption>
+                </figure>
+              <figure>
+              <img src="./media/rectification/warped_mousepad_bilinear.jpg" alt="Warp via Billinear Interpolation" />
+              <figcaption>Warp via Billinear Interpolation.</figcaption>
+              </figure>
+  
+            </div>
+         <p> I couldn't see any visible difference between the bilinear method and the nearest neighbor. The image produced from billinear interpolation seems slightly fuzzier, but I might be imagining that.</p>
+        </div>
+  
+        </div>
+      </div>
+    </section>
+
+    <section id="a4">
+      <h2>A.4 · Blend Images into a Mosaic (20 pts)</h2>
+      <div class="card">
+        <h3>Procedure</h3>
+        <p class="small">This procedure constructs an image panorama by first realigning multiple source images onto a common projective plane. 
+            A single image is selected as the reference frame, defining the target coordinate system for the mosaic. For each additional source image, 
+            a 3x3 homography matrix (H) is computed from a set of corresponding feature points. This matrix models the projective distortion between the source and reference image planes.
+             Each source image is then transformed into the reference frame using an inverse warping algorithm, which iterates through the destination canvas and samples pixels from the 
+             source image, thereby preventing aliasing artifacts in the resulting rectified image.
+
+            After this, the aligned images are joined to create the final seamless panorama. To mitigate visible discontinuities at image boundaries, 
+            a weighted averaging technique is applied in all regions of overlap. Instead of one image occluding another, the final pixel intensity in these regions 
+            is calculated as a linear interpolation of the contributing image pixels. The weights for this blending are derived from binary masks that define the 
+            spatial footprint of each warped image on the canvas. This feathering method produces smooth intensity transitions between adjacent images. The process 
+            is finalized by cropping the mosaic to the minimal bounding box containing valid pixel data, removing the black space.
+            
+            
+            </p>
+
+        <h3>Campanile Mosaic</h3>
+        <div class="grid">
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_1.jpg" alt="Campanile Input 1 " />
+            <figcaption>Campanile Input 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_2.jpg" alt="Mosaic 2 result" />
+            <figcaption>Campanile Input 2.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/campanile_3.jpg" alt="Mosaic 3 inputs" />
+            <figcaption>Campanile Input 3.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/mosaic/campanile_three_cropped.jpg" alt="Mosaic 3 result" />
+            <figcaption>Campanile Mosaic.</figcaption>
+          </figure>
+        </div>
+        <h3>Soda Hall Mosaic</h3>
+        <div class="grid">
+          <figure>
+            <img src="./media/projective_transformation_images/soda_1.png" alt="Campanile Input 1 " />
+            <figcaption>Soda Input 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/soda_2.png" alt="Mosaic 2 result" />
+            <figcaption>Soda Input 2.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/projective_transformation_images/soda_3.png" alt="Mosaic 3 inputs" />
+            <figcaption>Soda Input 3.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/mosaic/soda_three_cropped.jpg" alt="Mosaic 3 result" />
+            <figcaption>Soda Mosaic.</figcaption>
+          </figure>
+        </div>
+    <h3>VLSB Mosaic</h3>
+    <div class="grid">
+      <figure>
+        <img src="./media/projective_transformation_images/new_vlsb_1.png" alt="Campanile Input 1 " />
+        <figcaption>VLSB Input 1.</figcaption>
+      </figure>
+      <figure>
+        <img src="./media/projective_transformation_images/new_vlsb_2.png" alt="Mosaic 2 result" />
+        <figcaption>VLSB Input 2.</figcaption>
+      </figure>
+      <figure>
+        <img src="./media/projective_transformation_images/new_vlsb_3.png" alt="Mosaic 3 inputs" />
+        <figcaption>VLSB Input 3.</figcaption>
+      </figure>
+      <figure>
+        <img src="./media/mosaic/mosaic_three_cropped.jpg" alt="Mosaic 3 result" />
+        <figcaption>VLSB Mosaic.</figcaption>
+      </figure>
+    </div>
+      </div>
+    </section>
+
+  </main>
+
+  <a href="#top" class="top-link" title="Back to top">↑ Top</a>
+
+  <footer>
+    © 2025 Mallika Agrawal · Built for CS180 · Hosted on GitHub Pages
+  </footer>
+
+  <script>
+    // Before/After slider logic
+    document.querySelectorAll('[data-ba]').forEach(function(ba){
+      const top = ba.querySelector('.top');
+      const range = ba.querySelector('input[type=range]');
+      const handle = ba.querySelector('.handle');
+      function update(v){
+        const pct = (v||range.value) + '%';
+        top.style.width = pct;
+        ba.style.setProperty('--pos', pct);
+      }
+      range.addEventListener('input', e=> update(e.target.value));
+      update(50);
+    });
+  </script>
+</body>
+</html>
