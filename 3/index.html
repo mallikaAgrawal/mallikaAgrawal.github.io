@@ -148,15 +148,21 @@
         <a href="#a2">A.2 Recover Homographies</a>
         <a href="#a3">A.3 Warp & Rectify</a>
         <a href="#a4">A.4 Blend Mosaics</a>
+        <a href="#b1">B.1 Harris Corner Detection</a>
+        <a href="#b2">B.2 Feature Descriptor Extraction</a>
+        <a href="#b3">B.3 Feature Matching</a>
+        <a href="#b4">B.4 RANSAC for Robust Homography</a>
+
       </div>
     </nav>
   </header>
 
   <main>
+    <h2> Part A</h2>
     <section id="intro" class="lead" aria-labelledby="intro-h2">
       <div>
         <h2 id="intro-h2">Introduction</h2>
-        <p class="small">The goal of this assignment is to implement key parts of <em>image warping</em> with a practical application—<strong>image mosaicing</strong>. I collect overlapping photos, recover pairwise homographies via least squares, perform <em>inverse warping</em> with both nearest-neighbor and bilinear interpolation, and composite the results into clean mosaics using feathering (and optional multi-band blending). I also demonstrate image <strong>rectification</strong> as a unit test for the pipeline.</p>
+        <p class="small">The goal of Part A is to implement key parts of <em>image warping</em> with a practical application—<strong>image mosaicing</strong>. I collect overlapping photos, recover pairwise homographies via least squares, perform <em>inverse warping</em> with both nearest-neighbor and bilinear interpolation, and composite the results into clean mosaics using feathering (and optional multi-band blending). I also demonstrate image <strong>rectification</strong> as a unit test for the pipeline.</p>
         <div class="kpi">
           <span class="pill">Homography</span>
           <span class="pill">NN & Bilinear</span>
@@ -166,7 +172,7 @@
     </section>
 
     <section id="a1">
-      <h2>A.1 · Shoot and Digitize Pictures (20 pts)</h2>
+      <h2>A.1 · Shoot and Digitize Pictures</h2>
       <div class="card">
         <h3>Data Collection</h3>
         <p class="small">I shot 2–3 image sequences by rotating the camera around a (roughly) fixed center of projection with 40–70% overlap. I avoided strong barrel distortion and captured scenes with rich texture (buildings/interiors). Below I show two sets with projective relationships.</p>
@@ -297,7 +303,7 @@
             </section>
 
     <section id="a3">
-      <h2>A.3 · Warp the Images & Rectify (20 pts)</h2>
+      <h2>A.3 · Warp the Images & Rectify</h2>
       <div class="card" style="margin-bottom:1rem">
         <h3>Inverse Warping & Interpolation</h3>
         <p class="small">I implemented <strong>inverse warping</strong> so that every output pixel samples from the source via \(H^{-1}\). Two interpolation modes are supported from scratch:</p>
@@ -344,7 +350,7 @@
     </section>
 
     <section id="a4">
-      <h2>A.4 · Blend Images into a Mosaic (20 pts)</h2>
+      <h2>A.4 · Blend Images into a Mosaic</h2>
       <div class="card">
         <h3>Procedure</h3>
         <p class="small">This procedure constructs an image panorama by first realigning multiple source images onto a common projective plane. 
@@ -420,7 +426,139 @@
       </figure>
     </div>
       </div>
+      <h2> Part B</h2>
     </section>
+      <div class="card">
+        <p class="small">The goal of Part B is to automatically stitch overlapping photos into mosaics. Following the Brown paper, I implement: (1) Harris corners, (2) ANMS to thin responses, (3) 40×40 → blurred 8×8 <em>axis‑aligned</em> descriptors with bias/gain normalization, (4) descriptor matching with <em>Lowe's ratio</em>, and (5) <strong>4-point RANSAC</strong> to estimate robust homographies before reusing Part A's warping + blending.
+      </div>
+    </section>
+
+    <section id="b1">
+      <h2>B.1 · Harris Corner Detection & ANMS</h2>
+      <div class="card">
+        <h3>Harris Corners (single-scale)</h3>
+        <p class="small">
+
+          I detect interest points using the Harris Corner Detector. The corner response is 
+\( R = \det(\mathbf{M}) - k\,\operatorname{trace}(\mathbf{M})^2 \), 
+where \(\mathbf{M}\) is the Gaussian-smoothed structure tensor computed from image gradients. 
+Points with large \(R\) indicate strong corners. Below: Harris corners overlaid on the image.
+</p>
+        <div class="grid">
+          <figure>
+            <img src="./media/partb/b.1/harris_corners_overlay.jpg" alt="Soda Hall Harris Corners Image 1" />
+            <figcaption>Soda Hall Harris Corners Image 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/partb/b.1/harris_corners_overlay_2.jpg" alt="Soda Hall Harris Corners Image 2" />
+            <figcaption>Soda Hall Harris Corners Image 2.</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <h3>Adaptive Non‑Maximum Suppression (ANMS)</h3>
+        <p class="small">I apply ANMS to select a spatially diverse subset of strong corners by assigning each candidate a suppression radius based on the nearest stronger neighbor and keeping the top‑\(N\) by radius.</p>
+                <div class="grid">
+          <figure>
+            <img src="./media/partb/b.1/anms_harris_corners_overlay.jpg" alt="Soda Hall Harris Corners w/ ANMS Image 1" />
+            <figcaption>Soda Hall Harris Corners w/ ANMS Image 1.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/partb/b.1/anms_harris_corners_overlay_2.jpg" alt="Soda Hall Harris Corners w/ ANMS Image 2" />
+            <figcaption>Soda Hall Harris Corners w/ ANMS Image 2.</figcaption>
+          </figure>
+        </div>
+
+        <details><summary>Implementation notes</summary>
+          <ul class="small">
+            <li>Compute radii using <em>min</em> distance to any corner with response > \(c\cdot R_i\).</li>
+            <li>Sort by radius, keep top \(N\) (e.g., 500).</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <section id="b2">
+      <h2>B.2 · Feature Descriptor Extraction</h2>
+      <div class="card">
+        <h3>40×40 → blurred 8×8 patches</h3>
+        <p class="small">Around each ANMS keypoint, I sample a 40×40 window, blur/downsample to an 8×8 descriptor (axis‑aligned; no rotation invariance), then bias/gain normalize (zero mean, unit variance).</p>
+        <div class="grid">
+          <figure>
+            <img src="./media/partb/b.2/features.jpg" alt="Feature Descriptors" />
+            <figcaption>Random descriptor samples — Soda.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="b3">
+      <h2>B.3 · Feature Matching</h2>
+      <div class="card">
+        <h3>Lowe Ratio Test</h3>
+        <p class="small">For each descriptor in image A, I find its nearest and second‑nearest neighbors in image B under L2 distance. A match is accepted if \(\frac{d_1}{d_2} < \tau\) (I used \(\tau=0.7\)).</p>
+        <div class="grid">
+          <figure>
+            <img src="./media/partb/b.3/matches.png" alt="Descriptor matches – Soda" />
+            <figcaption>Matches with lines — Soda.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="b4">
+      <h2>B.4 · RANSAC Homography & Automatic Mosaics</h2>
+      <div class="card">
+        <h3>4‑Point RANSAC</h3>
+        <p class="small">I repeatedly sample 4 random matches, fit \(H\), count inliers under a reprojection error threshold (I used 3 px), and keep the model with maximum inliers. Finally, I refit \(H\) using all inliers and reuse Part A's inverse-warp + blending to make the full mosaic.</p>
+        <details><summary>Parameters</summary>
+          <ul class="small">
+            <li>Iterations: 2k (scene dependent)</li>
+            <li>Inlier threshold: 3 px (L2 reprojection error)</li>
+          </ul>
+        </details>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <h3>Manual vs Automatic Stitching</h3>
+        <p class="small">Side-by-side comparison using the same scenes from Part A.</p>
+        <div class="grid">
+          <figure>
+            <img src="./media/mosaic/campanile_three_cropped.jpg" alt="Manual mosaic – Campanile" />
+            <figcaption>Manual (Part A) — Campanile.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/partb/b.4/campanile_ransac_cropped.jpg" alt="Automatic mosaic – Campanile" />
+            <figcaption>Automatic (Part B) — Campanile.</figcaption>
+          </figure>
+        </div>
+        <div class="grid">
+                  <figure>
+            <img src="./media/mosaic/soda_three_cropped.jpg" alt="Manual mosaic – Soda" />
+            <figcaption>Manual — Soda Hall.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/partb/b.4/soda_ransac_cropped.jpg" alt="Automatic mosaic – Soda" />
+            <figcaption>Automatic — Soda Hall.</figcaption>
+          </figure>
+          </div>
+        <div class="grid">
+
+
+                    <figure>
+            <img src="./media/mosaic/mosaic_three_cropped.jpg" alt="Manual mosaic – VLSB" />
+            <figcaption>Manual — VLSB.</figcaption>
+          </figure>
+          <figure>
+            <img src="./media/partb/b.4/vlsb_ransac_cropped.jpg" alt="Automatic mosaic – VLSB" />
+            <figcaption>Automatic — VLSB.</figcaption>
+          </figure>
+          </div>
+        </p> I can see from thse results that the automatic stitching seemed to do noticably better. The manual results seem more blurry, and I can tell they're slightly off. The algorithm worked so well that it's certainly better than the manual stitching.
+      </div>
+    </section>
+
 
   </main>
 
